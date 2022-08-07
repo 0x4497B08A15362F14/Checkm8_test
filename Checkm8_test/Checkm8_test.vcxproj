@@ -146,11 +146,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\checkm8.cpp" />
+    <ClCompile Include="src\Dfu.cpp" />
+    <ClCompile Include="src\Libusb.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\3rdparty\libusb.h" />
     <ClInclude Include="src\checkm8.h" />
+    <ClInclude Include="src\Dfu.h" />
+    <ClInclude Include="src\Libusb.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
